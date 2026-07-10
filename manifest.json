@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Deluge Connect",
+  "description": "Send torrent and magnet links directly to your Deluge server.",
+  "version": "0.1.0",
+
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+
+  "permissions": [
+    "contextMenus",
+    "storage",
+    "notifications"
+  ],
+
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+
+
+  "options_page": "src/ui/options.html",
+
+  "action": {
+    "default_title": "Deluge Connect"
+  }
+}
