@@ -1,5 +1,5 @@
 const DEFAULT_SETTINGS = {
-    serverUrl: "http://10.14.88.11:8112",
+    serverUrl: "http://localhost:8112",
     password: "",
     rememberPassword: true
 };

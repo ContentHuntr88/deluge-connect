@@ -27,7 +27,7 @@ export async function callRpc(serverUrl, method, params = []) {
                 id: requestId
             })
         });
-    } catch (error) {
+    } catch {
         throw new Error(
             `Could not reach Deluge at ${normalizedUrl}. Check the address and confirm Deluge WebUI is running.`
         );

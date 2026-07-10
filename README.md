@@ -4,167 +4,154 @@
 
 Deluge Connect is a lightweight Chromium extension that lets you send torrents to your self-hosted Deluge instance without opening the Deluge Web UI.
 
-Designed for speed, simplicity and self-hosted media workflows.
+Designed for fast, simple, self-hosted workflows.
 
 ---
 
 ## Features
 
-- ✅ Right-click any magnet link
-- ✅ Right-click any `.torrent` download
-- ✅ One-click "Add to Deluge"
-- ✅ Presets (TV, Movies, Games, etc.)
-- ✅ Automatic labels (when the Label plugin is installed)
-- ✅ Download locations per preset
-- ✅ Browser toast notifications
-- ✅ Connection testing
-- ✅ Password validation
-- ✅ Clean modern interface
-- ✅ Works with Brave, Chrome and other Chromium browsers
+* Right-click magnet links
+* Right-click `.torrent` links
+* Send torrents directly to Deluge
+* Custom presets for TV, Movies, Games, and more
+* Automatic label assignment when the Deluge Label plugin is installed
+* Browser toast notifications
+* Connection testing
+* Password validation
+* Modern options interface
+* Compatible with Brave, Chrome, Edge, and other Chromium browsers
 
 ---
 
 ## Screenshots
 
-Coming soon.
+### Options Page
+
+![Deluge Connect options page](screenshots/options-page.png)
+
+### Context Menu
+
+![Deluge Connect context menu](screenshots/context-menu.png)
+
+### Toast Notification
+
+![Deluge Connect toast notification](screenshots/toast-notification.png)
 
 ---
 
 ## Installation
 
-### Option 1 — Download Release
+### Download a release
 
-Download the latest release from GitHub.
+Download the latest release ZIP from the GitHub Releases page.
 
-Unzip the archive somewhere permanent.
+Extract the ZIP into a permanent folder.
 
-Open:
+Open one of these pages in your browser:
 
-```
+```text
 chrome://extensions
 ```
 
-or
-
-```
+```text
 brave://extensions
 ```
 
-Enable **Developer Mode**.
+Enable **Developer mode**.
 
-Click:
+Click **Load unpacked** and select the extracted extension folder.
 
-```
-Load unpacked
-```
-
-Select the extension folder.
-
----
-
-### Option 2 — Clone
+### Clone the repository
 
 ```bash
 git clone https://github.com/ContentHuntr88/deluge-connect.git
 ```
 
-Load the folder as an unpacked extension.
+Load the cloned folder as an unpacked extension.
 
 ---
 
 ## Configuration
 
-Open the extension options.
+Open the Deluge Connect options page.
 
 Enter:
 
-- Deluge WebUI URL
-- Deluge password
+* Your Deluge WebUI address
+* Your Deluge WebUI password
 
 Example:
 
-```
-http://192.168.1.10:8112
+```text
+http://localhost:8112
 ```
 
-Click **Test Connection**.
+Click **Test Connection** to confirm Deluge Connect can communicate with your server.
 
 ---
 
-## Using Presets
+## Presets
 
-Presets allow different content types to automatically use different settings.
+Presets let you send torrents using predefined labels.
 
 Example:
 
-| Preset | Label | Download Folder |
-|---------|-------|-----------------|
-| TV | tv-sonarr | TV Downloads |
-| Movies | radarr | Movie Downloads |
-| Games | games | Games |
+| Preset | Deluge label |
+| ------ | ------------ |
+| TV     | sonarr       |
+| Movies | radarr       |
+| Games  | games        |
 
-Choose the preset from the context menu when adding a torrent.
+Select a preset from the Deluge Connect context menu when adding a torrent.
 
 ---
 
 ## Labels
 
-If the Deluge Label plugin is installed, Deluge Connect automatically applies labels.
+When the Deluge Label plugin is enabled, Deluge Connect automatically applies the selected preset label.
 
-If the plugin is disabled or missing, the torrent is still added normally and you'll receive a notification that the label could not be applied.
+When the plugin is unavailable, the torrent is still added successfully and Deluge Connect displays a notification explaining that the label was not applied.
 
 ---
 
 ## Permissions
 
-Deluge Connect requires:
+Deluge Connect uses the following browser permissions:
 
-- Storage
-- Context Menus
-- Scripting
+* Storage
+* Context menus
+* Scripting
+* Host access
 
-Host access is required so the extension can communicate directly with your Deluge WebUI.
+Host access is required so the extension can communicate directly with the configured Deluge WebUI server.
 
-No analytics.
+Deluge Connect contains:
 
-No tracking.
+* No analytics
+* No advertising
+* No tracking
+* No external cloud service
 
-No external services.
-
-Everything runs locally between your browser and your Deluge server.
+Communication occurs directly between your browser and your Deluge server.
 
 ---
 
-## Building
-
-Simply clone the repository and load it as an unpacked Chromium extension.
+## Development
 
 No build tools are required.
 
----
-
-## Roadmap
-
-### v1.1
-
-- Firefox support
-- Optional Add with Options dialog
-- Better context menu filtering
-- Import / Export presets
-- Additional notification themes
+Clone the repository and load the project directory as an unpacked Chromium extension.
 
 ---
 
-## Contributing
+## Reporting Issues
 
-Bug reports and pull requests are welcome.
-
-If you find an issue, please open a GitHub Issue.
+Bug reports and feature requests are welcome through GitHub Issues.
 
 ---
 
 ## License
 
-MIT License
+Deluge Connect is released under the MIT License.
 
-See LICENSE for details.
+See the `LICENSE` file for details.
