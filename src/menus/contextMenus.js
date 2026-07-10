@@ -7,6 +7,9 @@ import { Presets } from "../storage/presets.js";
 
 const ROOT_MENU_ID = "deluge-connect";
 const PRESET_MENU_PREFIX = "deluge-connect-preset-";
+const MINIMUM_LOADING_TIME = 600;
+
+let isSendingTorrent = false;
 
 createMenus();
 
@@ -35,6 +38,17 @@ async function handleMenuClick(info, tab) {
         return;
     }
 
+    if (isSendingTorrent) {
+        await showBrowserToast(tab, {
+            status: "warning",
+            title: "Already sending",
+            message:
+                "Please wait for the current torrent to finish sending."
+        });
+
+        return;
+    }
+
     if (!info.linkUrl) {
         await showBrowserToast(tab, {
             status: "error",
@@ -48,6 +62,16 @@ async function handleMenuClick(info, tab) {
     const presetId = menuItemId.slice(
         PRESET_MENU_PREFIX.length
     );
+
+    isSendingTorrent = true;
+
+    const loadingStartedAt = Date.now();
+
+    await showBrowserToast(tab, {
+        status: "loading",
+        title: "Sending to Deluge",
+        message: getTorrentName(info.linkUrl)
+    });
 
     try {
         const presets = await Presets.getAll();
@@ -63,6 +87,7 @@ async function handleMenuClick(info, tab) {
         }
 
         await addTorrent(info.linkUrl, preset);
+        await waitForMinimumLoadingTime(loadingStartedAt);
 
         await showBrowserToast(tab, {
             status: "success",
@@ -77,6 +102,8 @@ async function handleMenuClick(info, tab) {
             `Added to Deluge using preset "${preset.name}".`
         );
     } catch (error) {
+        await waitForMinimumLoadingTime(loadingStartedAt);
+
         console.error(
             "Failed to add torrent to Deluge:",
             error
@@ -97,7 +124,24 @@ async function handleMenuClick(info, tab) {
             title: "Failed to add torrent",
             message: getErrorMessage(error)
         });
+    } finally {
+        isSendingTorrent = false;
     }
+}
+
+async function waitForMinimumLoadingTime(startedAt) {
+    const elapsedTime = Date.now() - startedAt;
+
+    const remainingTime =
+        MINIMUM_LOADING_TIME - elapsedTime;
+
+    if (remainingTime <= 0) {
+        return;
+    }
+
+    await new Promise(resolve => {
+        setTimeout(resolve, remainingTime);
+    });
 }
 
 async function createMenus() {
@@ -314,9 +358,11 @@ function renderDelugeToast({
     const DISPLAY_DURATION = 5000;
     const ANIMATION_DURATION = 260;
 
-    document.getElementById(TOAST_ID)?.remove();
-
     const toastStyles = {
+        loading: {
+            accentColor: "#2563eb",
+            statusSymbol: ""
+        },
         success: {
             accentColor: "#15803d",
             statusSymbol: "✓"
@@ -331,163 +377,24 @@ function renderDelugeToast({
         }
     };
 
-    const {
-        accentColor,
-        statusSymbol
-    } = toastStyles[status] || toastStyles.error;
+    const selectedStyle =
+        toastStyles[status] || toastStyles.error;
 
-    const toast = document.createElement("div");
-    toast.id = TOAST_ID;
-    toast.title = "Click to dismiss";
+    function resetToastAnimations(toast) {
+        window.clearTimeout(
+            toast._delugeRemovalTimer
+        );
 
-    Object.assign(toast.style, {
-        position: "fixed",
-        top: "20px",
-        right: "20px",
-        zIndex: "2147483647",
+        toast._delugeProgressAnimation?.cancel();
+        toast._delugeSpinnerAnimation?.cancel();
 
-        display: "grid",
-        gridTemplateColumns: "42px minmax(0, 1fr)",
-        gap: "12px",
-        alignItems: "center",
+        toast._delugeRemovalTimer = null;
+        toast._delugeProgressAnimation = null;
+        toast._delugeSpinnerAnimation = null;
+    }
 
-        width: "min(370px, calc(100vw - 40px))",
-        padding: "14px 16px 17px",
-
-        color: "#172033",
-        background: "rgba(255, 255, 255, 0.98)",
-        border: "1px solid #d8dee8",
-        borderLeft: `5px solid ${accentColor}`,
-        borderRadius: "12px",
-
-        boxShadow:
-            "0 18px 50px rgba(15, 23, 42, 0.22), " +
-            "0 6px 16px rgba(15, 23, 42, 0.10)",
-
-        fontFamily:
-            "Inter, system-ui, -apple-system, " +
-            "BlinkMacSystemFont, Segoe UI, sans-serif",
-
-        overflow: "hidden",
-        cursor: "pointer",
-        opacity: "0",
-        transform: "translateX(32px) scale(0.98)",
-
-        transition:
-            `opacity ${ANIMATION_DURATION}ms ease, ` +
-            `transform ${ANIMATION_DURATION}ms ` +
-            "cubic-bezier(0.2, 0.8, 0.2, 1)"
-    });
-
-    const logo = document.createElement("img");
-    logo.src = iconUrl;
-    logo.alt = "";
-    logo.width = 42;
-    logo.height = 42;
-
-    Object.assign(logo.style, {
-        display: "block",
-        width: "42px",
-        height: "42px",
-        objectFit: "contain"
-    });
-
-    const content = document.createElement("div");
-    content.style.minWidth = "0";
-
-    const titleRow = document.createElement("div");
-
-    Object.assign(titleRow.style, {
-        display: "flex",
-        alignItems: "center",
-        gap: "7px",
-        marginBottom: "4px",
-        fontSize: "14px",
-        lineHeight: "1.3"
-    });
-
-    const statusIcon = document.createElement("span");
-    statusIcon.textContent = statusSymbol;
-
-    Object.assign(statusIcon.style, {
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        width: "20px",
-        height: "20px",
-        flex: "0 0 20px",
-        color: "#ffffff",
-        background: accentColor,
-        borderRadius: "50%",
-        fontSize: "13px",
-        fontWeight: "800"
-    });
-
-    const titleElement = document.createElement("strong");
-    titleElement.textContent = title;
-
-    const messageElement = document.createElement("div");
-    messageElement.textContent = message;
-
-    Object.assign(messageElement.style, {
-        overflowWrap: "anywhere",
-        color: "#667085",
-        fontSize: "13px",
-        lineHeight: "1.45"
-    });
-
-    const progressTrack = document.createElement("div");
-
-    Object.assign(progressTrack.style, {
-        position: "absolute",
-        right: "0",
-        bottom: "0",
-        left: "0",
-        height: "4px",
-        background: "rgba(15, 23, 42, 0.08)"
-    });
-
-    const progressBar = document.createElement("div");
-
-    Object.assign(progressBar.style, {
-        width: "100%",
-        height: "100%",
-        background: accentColor,
-        transformOrigin: "left center",
-        transform: "scaleX(1)"
-    });
-
-    progressTrack.appendChild(progressBar);
-
-    titleRow.append(
-        statusIcon,
-        titleElement
-    );
-
-    content.append(
-        titleRow,
-        messageElement
-    );
-
-    toast.append(
-        logo,
-        content,
-        progressTrack
-    );
-
-    document.documentElement.appendChild(toast);
-
-    let dismissed = false;
-    let removalTimer;
-
-    function dismissToast() {
-        if (dismissed) {
-            return;
-        }
-
-        dismissed = true;
-
-        window.clearTimeout(removalTimer);
+    function dismissToast(toast) {
+        resetToastAnimations(toast);
 
         toast.style.opacity = "0";
         toast.style.transform =
@@ -498,13 +405,256 @@ function renderDelugeToast({
         }, ANIMATION_DURATION);
     }
 
-    toast.addEventListener("click", dismissToast);
+    let toast = document.getElementById(TOAST_ID);
 
-    requestAnimationFrame(() => {
-        toast.style.opacity = "1";
-        toast.style.transform =
-            "translateX(0) scale(1)";
+    if (!toast) {
+        toast = document.createElement("div");
+        toast.id = TOAST_ID;
+        toast.title = "Click to dismiss";
 
+        Object.assign(toast.style, {
+            position: "fixed",
+            top: "20px",
+            right: "20px",
+            zIndex: "2147483647",
+
+            display: "grid",
+            gridTemplateColumns: "42px minmax(0, 1fr)",
+            gap: "12px",
+            alignItems: "center",
+
+            width: "min(370px, calc(100vw - 40px))",
+            padding: "14px 16px 17px",
+
+            color: "#172033",
+            background: "rgba(255, 255, 255, 0.98)",
+            border: "1px solid #d8dee8",
+            borderRadius: "12px",
+
+            boxShadow:
+                "0 18px 50px rgba(15, 23, 42, 0.22), " +
+                "0 6px 16px rgba(15, 23, 42, 0.10)",
+
+            fontFamily:
+                "Inter, system-ui, -apple-system, " +
+                "BlinkMacSystemFont, Segoe UI, sans-serif",
+
+            overflow: "hidden",
+            cursor: "pointer",
+            opacity: "0",
+            transform:
+                "translateX(32px) scale(0.98)",
+
+            transition:
+                `opacity ${ANIMATION_DURATION}ms ease, ` +
+                `transform ${ANIMATION_DURATION}ms ` +
+                "cubic-bezier(0.2, 0.8, 0.2, 1)"
+        });
+
+        const logo = document.createElement("img");
+        logo.src = iconUrl;
+        logo.alt = "";
+
+        Object.assign(logo.style, {
+            display: "block",
+            width: "42px",
+            height: "42px",
+            objectFit: "contain"
+        });
+
+        const content = document.createElement("div");
+        content.style.minWidth = "0";
+
+        const titleRow = document.createElement("div");
+
+        Object.assign(titleRow.style, {
+            display: "flex",
+            alignItems: "center",
+            gap: "7px",
+            marginBottom: "4px",
+            fontSize: "14px",
+            lineHeight: "1.3"
+        });
+
+        const statusIcon =
+            document.createElement("span");
+
+        statusIcon.dataset.role = "status-icon";
+
+        Object.assign(statusIcon.style, {
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "20px",
+            height: "20px",
+            flex: "0 0 20px",
+            color: "#ffffff",
+            borderRadius: "50%",
+            fontSize: "13px",
+            fontWeight: "800"
+        });
+
+        const titleElement =
+            document.createElement("strong");
+
+        titleElement.dataset.role = "title";
+
+        const messageElement =
+            document.createElement("div");
+
+        messageElement.dataset.role = "message";
+
+        Object.assign(messageElement.style, {
+            overflowWrap: "anywhere",
+            color: "#667085",
+            fontSize: "13px",
+            lineHeight: "1.45"
+        });
+
+        const progressTrack =
+            document.createElement("div");
+
+        Object.assign(progressTrack.style, {
+            position: "absolute",
+            right: "0",
+            bottom: "0",
+            left: "0",
+            height: "4px",
+            background: "rgba(15, 23, 42, 0.08)"
+        });
+
+        const progressBar =
+            document.createElement("div");
+
+        progressBar.dataset.role = "progress-bar";
+
+        Object.assign(progressBar.style, {
+            width: "100%",
+            height: "100%",
+            transformOrigin: "left center"
+        });
+
+        progressTrack.appendChild(progressBar);
+
+        titleRow.append(
+            statusIcon,
+            titleElement
+        );
+
+        content.append(
+            titleRow,
+            messageElement
+        );
+
+        toast.append(
+            logo,
+            content,
+            progressTrack
+        );
+
+        document.documentElement.appendChild(toast);
+
+        toast.addEventListener("click", () => {
+            dismissToast(toast);
+        });
+
+        requestAnimationFrame(() => {
+            toast.style.opacity = "1";
+            toast.style.transform =
+                "translateX(0) scale(1)";
+        });
+    }
+
+    resetToastAnimations(toast);
+
+    const statusIcon = toast.querySelector(
+        '[data-role="status-icon"]'
+    );
+
+    const titleElement = toast.querySelector(
+        '[data-role="title"]'
+    );
+
+    const messageElement = toast.querySelector(
+        '[data-role="message"]'
+    );
+
+    const progressBar = toast.querySelector(
+        '[data-role="progress-bar"]'
+    );
+
+    toast.style.borderLeft =
+        `5px solid ${selectedStyle.accentColor}`;
+
+    statusIcon.textContent =
+        selectedStyle.statusSymbol;
+
+    statusIcon.style.background =
+        selectedStyle.accentColor;
+
+    statusIcon.style.border = "none";
+    statusIcon.style.boxSizing = "content-box";
+    statusIcon.style.transform = "rotate(0deg)";
+
+    titleElement.textContent = title;
+    messageElement.textContent = message;
+
+    progressBar.style.background =
+        selectedStyle.accentColor;
+
+    progressBar.style.transform = "scaleX(1)";
+
+    if (status === "loading") {
+        statusIcon.style.background = "transparent";
+
+        statusIcon.style.border =
+            `3px solid ${selectedStyle.accentColor}33`;
+
+        statusIcon.style.borderTopColor =
+            selectedStyle.accentColor;
+
+        statusIcon.style.boxSizing = "border-box";
+
+        toast._delugeSpinnerAnimation =
+            statusIcon.animate(
+                [
+                    {
+                        transform: "rotate(0deg)"
+                    },
+                    {
+                        transform: "rotate(360deg)"
+                    }
+                ],
+                {
+                    duration: 800,
+                    iterations: Infinity,
+                    easing: "linear"
+                }
+            );
+
+        toast._delugeProgressAnimation =
+            progressBar.animate(
+                [
+                    {
+                        transform:
+                            "translateX(-100%) scaleX(0.35)"
+                    },
+                    {
+                        transform:
+                            "translateX(290%) scaleX(0.35)"
+                    }
+                ],
+                {
+                    duration: 1100,
+                    iterations: Infinity,
+                    easing: "ease-in-out"
+                }
+            );
+
+        return;
+    }
+
+    toast._delugeProgressAnimation =
         progressBar.animate(
             [
                 {
@@ -520,10 +670,11 @@ function renderDelugeToast({
                 fill: "forwards"
             }
         );
-    });
 
-    removalTimer = window.setTimeout(
-        dismissToast,
+    toast._delugeRemovalTimer = window.setTimeout(
+        () => {
+            dismissToast(toast);
+        },
         DISPLAY_DURATION
     );
 }

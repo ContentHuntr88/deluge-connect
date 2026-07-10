@@ -3,6 +3,10 @@ import { callDeluge } from "../api/deluge.js";
 const DUPLICATE_TORRENT_ERROR =
     "This torrent is already in Deluge.";
 
+const LABEL_PLUGIN_WARNING =
+    "Torrent added successfully, but the Label plugin " +
+    "is not installed or enabled in Deluge.";
+
 export class LabelWarning extends Error {
     constructor(message) {
         super(message);
@@ -203,19 +207,35 @@ function normalizeFailureMessage(message) {
 }
 
 async function applyLabel(torrentIds, label) {
+    await confirmLabelPluginEnabled();
+
+    const availableLabels =
+        await getAvailableLabels();
+
+    const matchingLabel = availableLabels.find(
+        availableLabel =>
+            availableLabel.toLowerCase() ===
+            label.toLowerCase()
+    );
+
+    if (!matchingLabel) {
+        throw new LabelWarning(
+            `Torrent added successfully, but the label "${label}" ` +
+            "doesn't exist in Deluge."
+        );
+    }
+
     for (const torrentId of torrentIds) {
         try {
             const result = await callDeluge(
                 "label.set_torrent",
-                [torrentId, label]
+                [torrentId, matchingLabel]
             );
 
-            if (!isSuccessfulLabelResult(result)) {
+            if (isFailedLabelResult(result)) {
                 throw new LabelWarning(
-                    getLabelWarningMessage(
-                        result,
-                        label
-                    )
+                    `Torrent added successfully, but the label "${matchingLabel}" ` +
+                    "could not be applied."
                 );
             }
         } catch (error) {
@@ -226,45 +246,111 @@ async function applyLabel(torrentIds, label) {
             throw new LabelWarning(
                 getLabelWarningMessage(
                     error,
-                    label
+                    matchingLabel
                 )
             );
         }
     }
 }
 
-function isSuccessfulLabelResult(result) {
-    if (result === true) {
+async function confirmLabelPluginEnabled() {
+    let pluginInformation;
+
+    try {
+        pluginInformation = await callDeluge(
+            "web.get_plugins",
+            []
+        );
+    } catch {
+        throw new LabelWarning(
+            LABEL_PLUGIN_WARNING
+        );
+    }
+
+    const enabledPlugins =
+        pluginInformation?.enabled_plugins;
+
+    if (!Array.isArray(enabledPlugins)) {
+        throw new LabelWarning(
+            LABEL_PLUGIN_WARNING
+        );
+    }
+
+    const labelPluginEnabled =
+        enabledPlugins.some(pluginName =>
+            String(pluginName)
+                .trim()
+                .toLowerCase() === "label"
+        );
+
+    if (!labelPluginEnabled) {
+        throw new LabelWarning(
+            LABEL_PLUGIN_WARNING
+        );
+    }
+}
+
+async function getAvailableLabels() {
+    let result;
+
+    try {
+        result = await callDeluge(
+            "label.get_labels",
+            []
+        );
+    } catch {
+        throw new LabelWarning(
+            LABEL_PLUGIN_WARNING
+        );
+    }
+
+    if (!Array.isArray(result)) {
+        throw new LabelWarning(
+            LABEL_PLUGIN_WARNING
+        );
+    }
+
+    return result.map(label =>
+        String(label).trim()
+    );
+}
+
+function isFailedLabelResult(result) {
+    if (result === false) {
         return true;
     }
 
     if (
         typeof result === "object" &&
-        result !== null &&
-        result.success === true
+        result !== null
     ) {
-        return true;
+        return (
+            result.success === false ||
+            Boolean(result.error) ||
+            Boolean(result.error_msg)
+        );
     }
 
     return false;
 }
 
 function getLabelWarningMessage(error, label) {
-    const rawMessage = extractLabelErrorText(error);
-    const message = rawMessage.toLowerCase();
+    const rawMessage =
+        extractLabelErrorText(error);
+
+    const message =
+        rawMessage.toLowerCase();
 
     if (
         !rawMessage ||
         message.includes("unknown method") ||
         message.includes("not registered") ||
         message.includes("label.set_torrent") ||
+        message.includes("label.get_labels") ||
         message.includes("plugin") ||
         message.includes("method not found")
     ) {
-        return (
-            "Torrent added successfully, but the Label plugin " +
-            "is not installed or enabled in Deluge."
-        );
+        return LABEL_PLUGIN_WARNING;
     }
 
     if (
@@ -287,7 +373,9 @@ function getLabelWarningMessage(error, label) {
 
 function extractLabelErrorText(value) {
     if (value instanceof Error) {
-        return String(value.message || "").trim();
+        return String(
+            value.message || ""
+        ).trim();
     }
 
     if (typeof value === "string") {
@@ -296,7 +384,9 @@ function extractLabelErrorText(value) {
 
     if (Array.isArray(value)) {
         return value
-            .map(item => extractLabelErrorText(item))
+            .map(item =>
+                extractLabelErrorText(item)
+            )
             .filter(Boolean)
             .join(" ");
     }
@@ -319,12 +409,18 @@ function extractLabelErrorText(value) {
 function extractTorrentIds(result) {
     const torrentIds = [];
 
-    collectTorrentIds(result, torrentIds);
+    collectTorrentIds(
+        result,
+        torrentIds
+    );
 
     return [...new Set(torrentIds)];
 }
 
-function collectTorrentIds(value, torrentIds) {
+function collectTorrentIds(
+    value,
+    torrentIds
+) {
     if (typeof value === "string") {
         if (looksLikeTorrentId(value)) {
             torrentIds.push(value);
@@ -335,7 +431,10 @@ function collectTorrentIds(value, torrentIds) {
 
     if (Array.isArray(value)) {
         for (const item of value) {
-            collectTorrentIds(item, torrentIds);
+            collectTorrentIds(
+                item,
+                torrentIds
+            );
         }
 
         return;
@@ -352,7 +451,10 @@ function collectTorrentIds(value, torrentIds) {
             value.hash
         ];
 
-        for (const torrentId of possibleTorrentIds) {
+        for (
+            const torrentId
+            of possibleTorrentIds
+        ) {
             if (
                 typeof torrentId === "string" &&
                 looksLikeTorrentId(torrentId)
