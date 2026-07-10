@@ -3,15 +3,13 @@ import { callDeluge } from "../api/deluge.js";
 const DUPLICATE_TORRENT_ERROR =
     "This torrent is already in Deluge.";
 
-/**
- * Adds a magnet or torrent-file URL to Deluge.
- *
- * @param {string} torrentUrl
- * @param {{
- *   label?: string
- * }} preset
- * @returns {Promise<unknown>}
- */
+export class LabelWarning extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "LabelWarning";
+    }
+}
+
 export async function addTorrent(torrentUrl, preset = {}) {
     const url = String(torrentUrl || "").trim();
 
@@ -101,10 +99,9 @@ function validateTorrentFileResult(result) {
         );
     }
 
-    const successfulTorrentIds =
-        extractTorrentIds(result);
+    const torrentIds = extractTorrentIds(result);
 
-    if (successfulTorrentIds.length > 0) {
+    if (torrentIds.length > 0) {
         return;
     }
 
@@ -114,7 +111,8 @@ function validateTorrentFileResult(result) {
     if (
         resultText.includes("already") ||
         resultText.includes("duplicate") ||
-        resultText.includes("exists")
+        resultText.includes("exists") ||
+        resultText.includes("in session")
     ) {
         throw new Error(DUPLICATE_TORRENT_ERROR);
     }
@@ -149,8 +147,8 @@ function isFailedTorrentResult(result) {
     ) {
         return (
             result.success === false ||
-            result.error ||
-            result.error_msg
+            Boolean(result.error) ||
+            Boolean(result.error_msg)
         );
     }
 
@@ -195,7 +193,8 @@ function normalizeFailureMessage(message) {
     if (
         lowerValue.includes("already") ||
         lowerValue.includes("duplicate") ||
-        lowerValue.includes("exists")
+        lowerValue.includes("exists") ||
+        lowerValue.includes("in session")
     ) {
         return DUPLICATE_TORRENT_ERROR;
     }
@@ -206,17 +205,115 @@ function normalizeFailureMessage(message) {
 async function applyLabel(torrentIds, label) {
     for (const torrentId of torrentIds) {
         try {
-            await callDeluge(
+            const result = await callDeluge(
                 "label.set_torrent",
                 [torrentId, label]
             );
-        } catch {
-            throw new Error(
-                `Torrent was added, but label "${label}" could not be applied. ` +
-                "Confirm Deluge's Label plugin is enabled and that the label already exists."
+
+            if (!isSuccessfulLabelResult(result)) {
+                throw new LabelWarning(
+                    getLabelWarningMessage(
+                        result,
+                        label
+                    )
+                );
+            }
+        } catch (error) {
+            if (error instanceof LabelWarning) {
+                throw error;
+            }
+
+            throw new LabelWarning(
+                getLabelWarningMessage(
+                    error,
+                    label
+                )
             );
         }
     }
+}
+
+function isSuccessfulLabelResult(result) {
+    if (result === true) {
+        return true;
+    }
+
+    if (
+        typeof result === "object" &&
+        result !== null &&
+        result.success === true
+    ) {
+        return true;
+    }
+
+    return false;
+}
+
+function getLabelWarningMessage(error, label) {
+    const rawMessage = extractLabelErrorText(error);
+    const message = rawMessage.toLowerCase();
+
+    if (
+        !rawMessage ||
+        message.includes("unknown method") ||
+        message.includes("not registered") ||
+        message.includes("label.set_torrent") ||
+        message.includes("plugin") ||
+        message.includes("method not found")
+    ) {
+        return (
+            "Torrent added successfully, but the Label plugin " +
+            "is not installed or enabled in Deluge."
+        );
+    }
+
+    if (
+        message.includes("does not exist") ||
+        message.includes("not found") ||
+        message.includes("invalid label") ||
+        message.includes("unknown label")
+    ) {
+        return (
+            `Torrent added successfully, but the label "${label}" ` +
+            "doesn't exist in Deluge."
+        );
+    }
+
+    return (
+        `Torrent added successfully, but the label "${label}" ` +
+        "could not be applied."
+    );
+}
+
+function extractLabelErrorText(value) {
+    if (value instanceof Error) {
+        return String(value.message || "").trim();
+    }
+
+    if (typeof value === "string") {
+        return value.trim();
+    }
+
+    if (Array.isArray(value)) {
+        return value
+            .map(item => extractLabelErrorText(item))
+            .filter(Boolean)
+            .join(" ");
+    }
+
+    if (
+        typeof value === "object" &&
+        value !== null
+    ) {
+        return String(
+            value.error_msg ||
+            value.error ||
+            value.message ||
+            ""
+        ).trim();
+    }
+
+    return "";
 }
 
 function extractTorrentIds(result) {

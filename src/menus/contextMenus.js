@@ -1,4 +1,8 @@
-import { addTorrent } from "../services/delugeService.js";
+import {
+    addTorrent,
+    LabelWarning
+} from "../services/delugeService.js";
+
 import { Presets } from "../storage/presets.js";
 
 const ROOT_MENU_ID = "deluge-connect";
@@ -73,17 +77,25 @@ async function handleMenuClick(info, tab) {
             `Added to Deluge using preset "${preset.name}".`
         );
     } catch (error) {
-        const message = getErrorMessage(error);
-
         console.error(
             "Failed to add torrent to Deluge:",
             error
         );
 
+        if (error instanceof LabelWarning) {
+            await showBrowserToast(tab, {
+                status: "warning",
+                title: "Label not applied",
+                message: error.message
+            });
+
+            return;
+        }
+
         await showBrowserToast(tab, {
             status: "error",
             title: "Failed to add torrent",
-            message
+            message: getErrorMessage(error)
         });
     }
 }
@@ -245,9 +257,10 @@ function getErrorMessage(error) {
 
     if (
         lowerMessage.includes("already exist") ||
-        lowerMessage.includes("duplicate")
+        lowerMessage.includes("duplicate") ||
+        lowerMessage.includes("in session")
     ) {
-        return "This torrent already exists in Deluge.";
+        return "This torrent is already in Deluge.";
     }
 
     return message;
@@ -298,20 +311,30 @@ function renderDelugeToast({
     iconUrl
 }) {
     const TOAST_ID = "deluge-connect-toast";
-    const DISPLAY_DURATION = 4000;
+    const DISPLAY_DURATION = 5000;
     const ANIMATION_DURATION = 260;
 
     document.getElementById(TOAST_ID)?.remove();
 
-    const accentColor =
-        status === "error"
-            ? "#dc2626"
-            : "#15803d";
+    const toastStyles = {
+        success: {
+            accentColor: "#15803d",
+            statusSymbol: "✓"
+        },
+        warning: {
+            accentColor: "#d97706",
+            statusSymbol: "!"
+        },
+        error: {
+            accentColor: "#dc2626",
+            statusSymbol: "✕"
+        }
+    };
 
-    const statusSymbol =
-        status === "error"
-            ? "✕"
-            : "✓";
+    const {
+        accentColor,
+        statusSymbol
+    } = toastStyles[status] || toastStyles.error;
 
     const toast = document.createElement("div");
     toast.id = TOAST_ID;
