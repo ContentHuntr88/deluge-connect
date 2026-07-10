@@ -27,6 +27,19 @@
     "https://*/*"
   ],
 
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "src/content/contextMenuFilter.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+
   "web_accessible_resources": [
     {
       "resources": [

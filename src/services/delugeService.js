@@ -1,5 +1,8 @@
 import { callDeluge } from "../api/deluge.js";
 
+const DUPLICATE_TORRENT_ERROR =
+    "This torrent is already in Deluge.";
+
 /**
  * Adds a magnet or torrent-file URL to Deluge.
  *
@@ -13,12 +16,14 @@ export async function addTorrent(torrentUrl, preset = {}) {
     const url = String(torrentUrl || "").trim();
 
     if (!url) {
-        throw new Error("No torrent or magnet link was provided.");
+        throw new Error(
+            "No torrent or magnet link was provided."
+        );
     }
 
     let result;
 
-    if (url.startsWith("magnet:")) {
+    if (url.toLowerCase().startsWith("magnet:")) {
         result = await addMagnet(url);
     } else if (
         url.startsWith("http://") ||
@@ -48,9 +53,7 @@ async function addMagnet(magnetUrl) {
     );
 
     if (!torrentId) {
-        throw new Error(
-            "Deluge did not add the magnet. It may already exist."
-        );
+        throw new Error(DUPLICATE_TORRENT_ERROR);
     }
 
     return torrentId;
@@ -78,13 +81,126 @@ async function addTorrentFromUrl(torrentUrl) {
         ]]
     );
 
+    validateTorrentFileResult(result);
+
+    return result;
+}
+
+function validateTorrentFileResult(result) {
     if (result === false || result === null) {
+        throw new Error(DUPLICATE_TORRENT_ERROR);
+    }
+
+    if (!Array.isArray(result)) {
+        return;
+    }
+
+    if (result.length === 0) {
         throw new Error(
-            "Deluge downloaded the torrent file but could not add it."
+            "Deluge did not return a result for the torrent."
         );
     }
 
-    return result;
+    const successfulTorrentIds =
+        extractTorrentIds(result);
+
+    if (successfulTorrentIds.length > 0) {
+        return;
+    }
+
+    const resultText = JSON.stringify(result)
+        .toLowerCase();
+
+    if (
+        resultText.includes("already") ||
+        resultText.includes("duplicate") ||
+        resultText.includes("exists")
+    ) {
+        throw new Error(DUPLICATE_TORRENT_ERROR);
+    }
+
+    const failedResult = result.find(
+        item => isFailedTorrentResult(item)
+    );
+
+    if (failedResult) {
+        const failureMessage =
+            extractFailureMessage(failedResult);
+
+        throw new Error(
+            failureMessage ||
+            "Deluge could not add the torrent file."
+        );
+    }
+}
+
+function isFailedTorrentResult(result) {
+    if (result === false || result === null) {
+        return true;
+    }
+
+    if (Array.isArray(result)) {
+        return result[0] === false;
+    }
+
+    if (
+        typeof result === "object" &&
+        result !== null
+    ) {
+        return (
+            result.success === false ||
+            result.error ||
+            result.error_msg
+        );
+    }
+
+    return false;
+}
+
+function extractFailureMessage(result) {
+    if (Array.isArray(result)) {
+        const message = result.find(
+            item =>
+                typeof item === "string" &&
+                item.trim()
+        );
+
+        return normalizeFailureMessage(message);
+    }
+
+    if (
+        typeof result === "object" &&
+        result !== null
+    ) {
+        const message =
+            result.error_msg ||
+            result.error ||
+            result.message;
+
+        return normalizeFailureMessage(message);
+    }
+
+    return "";
+}
+
+function normalizeFailureMessage(message) {
+    const value = String(message || "").trim();
+
+    if (!value) {
+        return "";
+    }
+
+    const lowerValue = value.toLowerCase();
+
+    if (
+        lowerValue.includes("already") ||
+        lowerValue.includes("duplicate") ||
+        lowerValue.includes("exists")
+    ) {
+        return DUPLICATE_TORRENT_ERROR;
+    }
+
+    return value;
 }
 
 async function applyLabel(torrentIds, label) {
@@ -94,7 +210,7 @@ async function applyLabel(torrentIds, label) {
                 "label.set_torrent",
                 [torrentId, label]
             );
-        } catch (error) {
+        } catch {
             throw new Error(
                 `Torrent was added, but label "${label}" could not be applied. ` +
                 "Confirm Deluge's Label plugin is enabled and that the label already exists."
@@ -104,15 +220,54 @@ async function applyLabel(torrentIds, label) {
 }
 
 function extractTorrentIds(result) {
-    if (typeof result === "string" && result) {
-        return [result];
+    const torrentIds = [];
+
+    collectTorrentIds(result, torrentIds);
+
+    return [...new Set(torrentIds)];
+}
+
+function collectTorrentIds(value, torrentIds) {
+    if (typeof value === "string") {
+        if (looksLikeTorrentId(value)) {
+            torrentIds.push(value);
+        }
+
+        return;
     }
 
-    if (Array.isArray(result)) {
-        return result.filter(
-            item => typeof item === "string" && item
-        );
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            collectTorrentIds(item, torrentIds);
+        }
+
+        return;
     }
 
-    return [];
+    if (
+        typeof value === "object" &&
+        value !== null
+    ) {
+        const possibleTorrentIds = [
+            value.torrent_id,
+            value.torrentId,
+            value.info_hash,
+            value.hash
+        ];
+
+        for (const torrentId of possibleTorrentIds) {
+            if (
+                typeof torrentId === "string" &&
+                looksLikeTorrentId(torrentId)
+            ) {
+                torrentIds.push(torrentId);
+            }
+        }
+    }
+}
+
+function looksLikeTorrentId(value) {
+    return /^[a-f0-9]{40}$/i.test(
+        String(value || "").trim()
+    );
 }
