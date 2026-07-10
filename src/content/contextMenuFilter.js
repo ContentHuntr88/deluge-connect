@@ -1,3 +1,9 @@
+/**
+ * Finds the nearest link associated with a pointer event.
+ *
+ * @param {PointerEvent | MouseEvent} event Browser pointer or context-menu event.
+ * @returns {HTMLAnchorElement | null}
+ */
 function getLinkFromEvent(event) {
     const target = event.target;
 
@@ -8,6 +14,12 @@ function getLinkFromEvent(event) {
     return target.closest("a[href]");
 }
 
+/**
+ * Determines whether a URL points to a magnet or torrent link.
+ *
+ * @param {string} linkUrl Link URL to inspect.
+ * @returns {boolean}
+ */
 function isTorrentOrMagnetLink(linkUrl) {
     const url = String(linkUrl || "").trim();
 
@@ -16,12 +28,16 @@ function isTorrentOrMagnetLink(linkUrl) {
     }
 
     try {
-        const parsedUrl = new URL(url, window.location.href);
+        const parsedUrl = new URL(
+            url,
+            window.location.href
+        );
 
-        if (
-            parsedUrl.protocol !== "http:" &&
-            parsedUrl.protocol !== "https:"
-        ) {
+        const isWebUrl =
+            parsedUrl.protocol === "http:" ||
+            parsedUrl.protocol === "https:";
+
+        if (!isWebUrl) {
             return false;
         }
 
@@ -33,16 +49,21 @@ function isTorrentOrMagnetLink(linkUrl) {
     }
 }
 
+/**
+ * Tells the service worker whether the Deluge context menu should be visible.
+ *
+ * @param {PointerEvent | MouseEvent} event Browser pointer or context-menu event.
+ * @returns {void}
+ */
 function updateContextMenu(event) {
     const link = getLinkFromEvent(event);
-
     const linkUrl = link?.href || "";
 
     chrome.runtime.sendMessage({
         type: "DELUGE_CONTEXT_MENU_VISIBILITY",
         visible: isTorrentOrMagnetLink(linkUrl)
     }).catch(() => {
-        // The service worker may be restarting.
+        // Ignore messages lost while the service worker is restarting.
     });
 }
 
