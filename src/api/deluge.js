@@ -1,16 +1,9 @@
 import { Settings } from "../storage/settings.js";
 import { callRpc } from "./rpc.js";
-import {
-    ensureAuthenticated,
-    login
-} from "./auth.js";
+import { login } from "./auth.js";
 
 /**
- * Tests the exact server URL and password currently saved.
- *
- * This deliberately performs a fresh login instead of reusing an
- * existing Deluge browser session. That ensures an incorrect password
- * cannot produce a false successful connection test.
+ * Tests the exact saved server URL and password.
  *
  * @returns {Promise<{
  *   connected: boolean,
@@ -29,18 +22,14 @@ export async function testConnection() {
     );
 
     /*
-     * Force Deluge to validate the supplied password.
-     * Do not use ensureAuthenticated() here because an existing valid
-     * session cookie could hide an incorrect password.
+     * Always validate the supplied password.
+     * Do not trust an existing Deluge session cookie.
      */
     await login(
         serverUrl,
         password
     );
 
-    /*
-     * Confirm the new session is genuinely authenticated.
-     */
     const authenticated = await callRpc(
         serverUrl,
         "auth.check_session",
@@ -49,7 +38,7 @@ export async function testConnection() {
 
     if (authenticated !== true) {
         throw new Error(
-            "Deluge accepted the request but did not create an authenticated session."
+            "Deluge did not create an authenticated session."
         );
     }
 
@@ -67,8 +56,8 @@ export async function testConnection() {
             : null;
     } catch {
         /*
-         * Login and session validation succeeded.
-         * A missing version method should not fail the test.
+         * Login succeeded. A missing version method should not
+         * cause the connection test to fail.
          */
     }
 
@@ -79,11 +68,10 @@ export async function testConnection() {
 }
 
 /**
- * Calls a Deluge JSON-RPC method after ensuring authentication.
+ * Calls a Deluge JSON-RPC method.
  *
- * Normal torrent operations may reuse an existing authenticated
- * session. If the session has expired, ensureAuthenticated() logs in
- * again using the saved password.
+ * The saved password is validated before every operation so an old
+ * authenticated browser session cannot bypass an incorrect password.
  *
  * @param {string} method Deluge RPC method name.
  * @param {unknown[]} params RPC parameters.
@@ -92,13 +80,24 @@ export async function testConnection() {
 export async function callDeluge(method, params = []) {
     const settings = await Settings.get();
 
-    await ensureAuthenticated(
-        settings.serverUrl,
-        settings.password
+    const serverUrl = String(
+        settings.serverUrl || ""
+    ).trim();
+
+    const password = String(
+        settings.password || ""
+    );
+
+    /*
+     * Force password validation before sending anything to Deluge.
+     */
+    await login(
+        serverUrl,
+        password
     );
 
     return callRpc(
-        settings.serverUrl,
+        serverUrl,
         method,
         params
     );
