@@ -1,44 +1,104 @@
-const serverUrl=document.getElementById("serverUrl");
+import { Settings } from "../storage/settings.js";
+import { testConnection } from "../api/deluge.js";
 
-const password=document.getElementById("password");
+const serverUrl = document.getElementById("serverUrl");
+const password = document.getElementById("password");
 
-const saveButton=document.getElementById("saveButton");
+const saveButton = document.getElementById("saveButton");
+const testButton = document.getElementById("testButton");
 
-const status=document.getElementById("status");
+const status = document.getElementById("status");
 
-load();
+initialize();
 
-saveButton.addEventListener("click",save);
+async function initialize() {
 
-async function load(){
+    const settings = await Settings.get();
 
-    const data=await chrome.storage.local.get([
-        "serverUrl",
-        "password"
-    ]);
-
-    serverUrl.value=data.serverUrl||"";
-
-    password.value=data.password||"";
+    serverUrl.value = settings.serverUrl;
+    password.value = settings.password;
 
 }
 
-async function save(){
+document
+    .getElementById("settingsForm")
+    .addEventListener("submit", saveSettings);
 
-    await chrome.storage.local.set({
+testButton.addEventListener("click", runConnectionTest);
 
-        serverUrl:serverUrl.value,
+async function saveSettings(event) {
 
-        password:password.value
+    event.preventDefault();
+
+    await Settings.save({
+
+        serverUrl: serverUrl.value.trim(),
+
+        password: password.value.trim(),
+
+        rememberPassword: true
 
     });
 
-    status.textContent="✔ Settings saved";
+    showStatus("✔ Settings saved", false);
 
-    setTimeout(()=>{
+}
 
-        status.textContent="";
+async function runConnectionTest() {
 
-    },2000);
+    showStatus("Connecting...", false);
+
+    try {
+
+        await Settings.save({
+
+            serverUrl: serverUrl.value.trim(),
+
+            password: password.value.trim(),
+
+            rememberPassword: true
+
+        });
+
+        const result = await testConnection();
+
+        if (result.connected) {
+
+            if (result.apiVersion) {
+
+                showStatus(
+                    `✔ Connected (Deluge ${result.apiVersion})`,
+                    false
+                );
+
+            } else {
+
+                showStatus(
+                    "✔ Connected",
+                    false
+                );
+
+            }
+
+        }
+
+    }
+    catch (error) {
+
+        showStatus(error.message, true);
+
+        console.error(error);
+
+    }
+
+}
+
+function showStatus(message, isError) {
+
+    status.textContent = message;
+
+    status.style.color = isError
+        ? "#c62828"
+        : "#2e7d32";
 
 }

@@ -2,46 +2,85 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
     <title>Deluge Connect Settings</title>
 
-    <link rel="stylesheet" href="options.css">
+    <link
+        rel="stylesheet"
+        href="options.css"
+    >
 </head>
 
 <body>
+    <main class="page">
+        <section class="card">
+            <header class="header">
+                <h1>Deluge Connect</h1>
 
-<h1>Deluge Connect</h1>
+                <p>
+                    Connect this browser to your Deluge WebUI.
+                </p>
+            </header>
 
-<div class="card">
+            <form id="settingsForm">
+                <label for="serverUrl">
+                    Deluge server URL
+                </label>
 
-    <label>
-        Deluge URL
-    </label>
+                <input
+                    id="serverUrl"
+                    name="serverUrl"
+                    type="url"
+                    placeholder="http://10.14.88.11:8112"
+                    autocomplete="url"
+                    required
+                >
 
-    <input
-        id="serverUrl"
-        type="text"
-        placeholder="http://10.14.88.11:8112">
+                <label for="password">
+                    Deluge password
+                </label>
 
-    <label>
-        Password
-    </label>
+                <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    autocomplete="current-password"
+                    required
+                >
 
-    <input
-        id="password"
-        type="password">
+                <div class="actions">
+                    <button
+                        id="saveButton"
+                        type="submit"
+                    >
+                        Save Settings
+                    </button>
 
-    <br><br>
+                    <button
+                        id="testButton"
+                        type="button"
+                    >
+                        Test Connection
+                    </button>
+                </div>
+            </form>
 
-    <button id="saveButton">
-        Save Settings
-    </button>
+            <p
+                id="status"
+                class="status"
+                role="status"
+                aria-live="polite"
+            ></p>
+        </section>
+    </main>
 
-    <p id="status"></p>
-
-</div>
-
-<script src="options.js"></script>
-
+    <script
+        type="module"
+        src="options.js"
+    ></script>
 </body>
 </html>
