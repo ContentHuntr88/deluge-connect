@@ -59,12 +59,23 @@ function updateContextMenu(event) {
     const link = getLinkFromEvent(event);
     const linkUrl = link?.href || "";
 
-    chrome.runtime.sendMessage({
-        type: "DELUGE_CONTEXT_MENU_VISIBILITY",
-        visible: isTorrentOrMagnetLink(linkUrl)
-    }).catch(() => {
-        // Ignore messages lost while the service worker is restarting.
-    });
+    try {
+        const messagePromise = chrome.runtime.sendMessage({
+            type: "DELUGE_CONTEXT_MENU_VISIBILITY",
+            visible: isTorrentOrMagnetLink(linkUrl)
+        });
+
+        if (
+            messagePromise &&
+            typeof messagePromise.catch === "function"
+        ) {
+            messagePromise.catch(() => {
+                // Ignore messages lost while the extension reloads.
+            });
+        }
+    } catch {
+        // Ignore calls from an old content script after extension reload.
+    }
 }
 
 document.addEventListener(

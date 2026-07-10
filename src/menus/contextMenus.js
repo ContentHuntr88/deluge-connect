@@ -10,20 +10,21 @@ const PRESET_MENU_PREFIX = "deluge-connect-preset-";
 const MINIMUM_LOADING_TIME = 600;
 
 let isSendingTorrent = false;
+let menuBuildQueue = Promise.resolve();
 
-createMenus();
+scheduleMenuRebuild();
 
 chrome.runtime.onInstalled.addListener(() => {
-    createMenus();
+    scheduleMenuRebuild();
 });
 
 chrome.runtime.onStartup.addListener(() => {
-    createMenus();
+    scheduleMenuRebuild();
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === "local" && changes.presets) {
-        createMenus();
+        scheduleMenuRebuild();
     }
 });
 
@@ -144,6 +145,16 @@ async function waitForMinimumLoadingTime(startedAt) {
     });
 }
 
+function scheduleMenuRebuild() {
+    menuBuildQueue = menuBuildQueue
+        .catch(() => {
+            // Keep the queue usable after a failed rebuild.
+        })
+        .then(() => createMenus());
+
+    return menuBuildQueue;
+}
+
 async function createMenus() {
     try {
         await chrome.contextMenus.removeAll();
@@ -163,7 +174,7 @@ async function createMenus() {
         }
 
         if (enabledPresets.length === 1) {
-            createPresetMenuItem(enabledPresets[0]);
+            await createPresetMenuItem(enabledPresets[0]);
 
             console.log(
                 "Created one-click Deluge Connect menu."
@@ -172,14 +183,14 @@ async function createMenus() {
             return;
         }
 
-        chrome.contextMenus.create({
+        await createContextMenuItem({
             id: ROOT_MENU_ID,
             title: "Add to Deluge",
             contexts: ["link"]
         });
 
         for (const preset of enabledPresets) {
-            createPresetMenuItem(
+            await createPresetMenuItem(
                 preset,
                 ROOT_MENU_ID
             );
@@ -197,7 +208,10 @@ async function createMenus() {
     }
 }
 
-function createPresetMenuItem(preset, parentId = null) {
+async function createPresetMenuItem(
+    preset,
+    parentId = null
+) {
     const properties = {
         id: `${PRESET_MENU_PREFIX}${preset.id}`,
         title: buildPresetTitle(preset),
@@ -208,7 +222,22 @@ function createPresetMenuItem(preset, parentId = null) {
         properties.parentId = parentId;
     }
 
-    chrome.contextMenus.create(properties);
+    await createContextMenuItem(properties);
+}
+
+function createContextMenuItem(properties) {
+    return new Promise((resolve, reject) => {
+        chrome.contextMenus.create(properties, () => {
+            const error = chrome.runtime.lastError;
+
+            if (error) {
+                reject(new Error(error.message));
+                return;
+            }
+
+            resolve();
+        });
+    });
 }
 
 function buildPresetTitle(preset) {
