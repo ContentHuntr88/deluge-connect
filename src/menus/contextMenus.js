@@ -1,53 +1,100 @@
 import { addTorrent } from "../services/delugeService.js";
+import { DEFAULT_PRESETS } from "../presets/defaultPresets.js";
 
-const MENU_ID = "deluge-connect-add";
+const ROOT_MENU = "deluge-connect";
+const ADD_DEFAULT = "dc-default";
+const SETTINGS = "dc-settings";
 
-createContextMenu();
+createMenus();
 
-chrome.runtime.onInstalled.addListener(createContextMenu);
-chrome.runtime.onStartup.addListener(createContextMenu);
+chrome.runtime.onInstalled.addListener(createMenus);
+chrome.runtime.onStartup.addListener(createMenus);
 
-async function createContextMenu() {
-    try {
-        await chrome.contextMenus.removeAll();
+async function createMenus() {
+    await chrome.contextMenus.removeAll();
 
-        chrome.contextMenus.create(
-            {
-                id: MENU_ID,
-                title: "Add to Deluge",
-                contexts: ["link"]
-            },
-            () => {
-                if (chrome.runtime.lastError) {
-                    console.error(
-                        "Context menu error:",
-                        chrome.runtime.lastError.message
-                    );
+    chrome.contextMenus.create({
+        id: ROOT_MENU,
+        title: "Deluge Connect",
+        contexts: ["link"]
+    });
 
-                    return;
-                }
+    chrome.contextMenus.create({
+        id: ADD_DEFAULT,
+        parentId: ROOT_MENU,
+        title: "⬇ Add to Deluge",
+        contexts: ["link"]
+    });
 
-                console.log("Deluge Connect context menu created.");
-            }
-        );
-    } catch (error) {
-        console.error("Failed to create context menu:", error);
+    chrome.contextMenus.create({
+        type: "separator",
+        parentId: ROOT_MENU,
+        contexts: ["link"]
+    });
+
+    for (const preset of DEFAULT_PRESETS) {
+        chrome.contextMenus.create({
+            id: `preset-${preset.id}`,
+            parentId: ROOT_MENU,
+            title: `${preset.icon} ${preset.name}`,
+            contexts: ["link"]
+        });
     }
+
+    chrome.contextMenus.create({
+        type: "separator",
+        parentId: ROOT_MENU,
+        contexts: ["link"]
+    });
+
+    chrome.contextMenus.create({
+        id: SETTINGS,
+        parentId: ROOT_MENU,
+        title: "⚙ Settings",
+        contexts: ["link"]
+    });
 }
 
 chrome.contextMenus.onClicked.addListener(async (info) => {
-    if (info.menuItemId !== MENU_ID) {
+    if (!info.linkUrl) {
         return;
     }
 
-    const linkUrl = String(info.linkUrl || "").trim();
-
-    console.log("Selected link:", linkUrl);
+    if (info.menuItemId === SETTINGS) {
+        await chrome.runtime.openOptionsPage();
+        return;
+    }
 
     try {
-        await addTorrent(linkUrl);
+        if (info.menuItemId === ADD_DEFAULT) {
+            await addTorrent(info.linkUrl);
+            console.log("Torrent added with default settings.");
+            return;
+        }
 
-        console.log("Torrent added successfully.");
+        const menuItemId = String(info.menuItemId);
+
+        if (!menuItemId.startsWith("preset-")) {
+            return;
+        }
+
+        const presetId = menuItemId.replace("preset-", "");
+
+        const preset = DEFAULT_PRESETS.find(
+            item => item.id === presetId
+        );
+
+        if (!preset) {
+            throw new Error(
+                `Could not find preset "${presetId}".`
+            );
+        }
+
+        await addTorrent(info.linkUrl, preset);
+
+        console.log(
+            `Torrent added using preset: ${preset.name}`
+        );
     } catch (error) {
         console.error("Failed to add torrent:", error);
     }
