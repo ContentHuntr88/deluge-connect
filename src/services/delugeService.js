@@ -5,8 +5,7 @@ import { callDeluge } from "../api/deluge.js";
  *
  * @param {string} torrentUrl
  * @param {{
- *   label?: string,
- *   downloadLocation?: string
+ *   label?: string
  * }} preset
  * @returns {Promise<unknown>}
  */
@@ -17,14 +16,15 @@ export async function addTorrent(torrentUrl, preset = {}) {
         throw new Error("No torrent or magnet link was provided.");
     }
 
-    const options = buildTorrentOptions(preset);
-
     let result;
 
     if (url.startsWith("magnet:")) {
-        result = await addMagnet(url, options);
-    } else if (url.startsWith("http://") || url.startsWith("https://")) {
-        result = await addTorrentFromUrl(url, options);
+        result = await addMagnet(url);
+    } else if (
+        url.startsWith("http://") ||
+        url.startsWith("https://")
+    ) {
+        result = await addTorrentFromUrl(url);
     } else {
         throw new Error(
             "Unsupported link. Deluge Connect accepts magnet, HTTP and HTTPS links."
@@ -32,28 +32,19 @@ export async function addTorrent(torrentUrl, preset = {}) {
     }
 
     const torrentIds = extractTorrentIds(result);
+    const label = String(preset.label || "").trim();
 
-    if (preset.label && torrentIds.length > 0) {
-        await applyLabel(torrentIds, preset.label);
+    if (label && torrentIds.length > 0) {
+        await applyLabel(torrentIds, label);
     }
 
     return result;
 }
 
-function buildTorrentOptions(preset) {
-    const options = {};
-
-    if (preset.downloadLocation) {
-        options.download_location = preset.downloadLocation;
-    }
-
-    return options;
-}
-
-async function addMagnet(magnetUrl, options) {
+async function addMagnet(magnetUrl) {
     const torrentId = await callDeluge(
         "core.add_torrent_magnet",
-        [magnetUrl, options]
+        [magnetUrl, {}]
     );
 
     if (!torrentId) {
@@ -65,7 +56,7 @@ async function addMagnet(magnetUrl, options) {
     return torrentId;
 }
 
-async function addTorrentFromUrl(torrentUrl, options) {
+async function addTorrentFromUrl(torrentUrl) {
     const temporaryPath = await callDeluge(
         "web.download_torrent_from_url",
         [torrentUrl, null]
@@ -82,7 +73,7 @@ async function addTorrentFromUrl(torrentUrl, options) {
         [[
             {
                 path: temporaryPath,
-                options
+                options: {}
             }
         ]]
     );

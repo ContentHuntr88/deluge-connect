@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+
     <meta
         name="viewport"
-        content="width=device-width, initial-scale=1.0"
+        content="width=device-width, initial-scale=1"
     >
 
     <title>Deluge Connect Settings</title>
@@ -16,43 +17,67 @@
 </head>
 
 <body>
-    <main class="page">
-        <section class="card">
-            <header class="header">
+    <main class="settings-page">
+        <header class="page-header">
+            <img
+                class="page-logo"
+                src="../../icons/icon128.png"
+                alt=""
+                width="48"
+                height="48"
+            >
+
+            <div>
                 <h1>Deluge Connect</h1>
 
                 <p>
-                    Connect this browser to your Deluge WebUI.
+                    Send torrent and magnet links directly to your Deluge server.
                 </p>
-            </header>
+            </div>
+        </header>
 
-            <form id="settingsForm">
-                <label for="serverUrl">
-                    Deluge server URL
-                </label>
+        <form id="settingsForm">
+            <section class="card">
+                <div class="section-header">
+                    <div>
+                        <h2>Deluge Server</h2>
 
-                <input
-                    id="serverUrl"
-                    name="serverUrl"
-                    type="url"
-                    placeholder="http://10.14.88.11:8112"
-                    autocomplete="url"
-                    required
-                >
+                        <p>
+                            Enter the address and password for your Deluge WebUI.
+                        </p>
+                    </div>
+                </div>
 
-                <label for="password">
-                    Deluge password
-                </label>
+                <div class="form-group">
+                    <label for="serverUrl">
+                        Deluge server URL
+                    </label>
 
-                <input
-                    id="password"
-                    name="password"
-                    type="password"
-                    autocomplete="current-password"
-                    required
-                >
+                    <input
+                        id="serverUrl"
+                        name="serverUrl"
+                        type="url"
+                        placeholder="http://192.168.1.100:8112"
+                        autocomplete="url"
+                        required
+                    >
+                </div>
 
-                <div class="actions">
+                <div class="form-group">
+                    <label for="password">
+                        Deluge password
+                    </label>
+
+                    <input
+                        id="password"
+                        name="password"
+                        type="password"
+                        placeholder="Enter your Deluge password"
+                        autocomplete="current-password"
+                    >
+                </div>
+
+                <div class="button-row">
                     <button
                         id="saveButton"
                         type="submit"
@@ -63,19 +88,62 @@
                     <button
                         id="testButton"
                         type="button"
+                        class="secondary-button"
                     >
                         Test Connection
                     </button>
                 </div>
-            </form>
 
-            <p
-                id="status"
-                class="status"
-                role="status"
-                aria-live="polite"
-            ></p>
-        </section>
+                <p
+                    id="status"
+                    role="status"
+                    aria-live="polite"
+                ></p>
+            </section>
+
+            <section class="card categories-card">
+                <div class="section-header">
+                    <div>
+                        <h2>Download Presets</h2>
+
+                        <p>
+                            Choose which Deluge labels appear in the right-click menu.
+                        </p>
+                    </div>
+
+                    <button
+                        id="addPresetButton"
+                        type="button"
+                        class="secondary-button"
+                        disabled
+                    >
+                        + Add Custom Preset
+                    </button>
+                </div>
+
+                <div
+                    id="presetList"
+                    class="preset-list"
+                >
+                    <div class="empty-state">
+                        Presets will appear here.
+                    </div>
+                </div>
+
+                <div
+                    class="button-row"
+                    style="margin-top: 20px;"
+                >
+                    <button
+                        id="savePresetsButton"
+                        type="button"
+                        disabled
+                    >
+                        Save Presets
+                    </button>
+                </div>
+            </section>
+        </form>
     </main>
 
     <script

@@ -1,15 +1,18 @@
 import { addTorrent } from "../services/delugeService.js";
 import { Presets } from "../storage/presets.js";
 
-const ROOT_MENU = "deluge-connect";
-const ADD_DEFAULT = "dc-default";
-const SETTINGS = "dc-settings";
-const PRESET_PREFIX = "preset-";
+const ROOT_MENU_ID = "deluge-connect";
+const PRESET_MENU_PREFIX = "deluge-connect-preset-";
 
 createMenus();
 
-chrome.runtime.onInstalled.addListener(createMenus);
-chrome.runtime.onStartup.addListener(createMenus);
+chrome.runtime.onInstalled.addListener(() => {
+    createMenus();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+    createMenus();
+});
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === "local" && changes.presets) {
@@ -17,67 +20,10 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     }
 });
 
-async function createMenus() {
-    try {
-        await chrome.contextMenus.removeAll();
-
-        chrome.contextMenus.create({
-            id: ROOT_MENU,
-            title: "Deluge Connect",
-            contexts: ["link"]
-        });
-
-        chrome.contextMenus.create({
-            id: ADD_DEFAULT,
-            parentId: ROOT_MENU,
-            title: "⬇ Add to Deluge",
-            contexts: ["link"]
-        });
-
-        const presets = await Presets.getAll();
-        const enabledPresets = presets.filter(
-            preset => preset.enabled !== false
-        );
-
-        if (enabledPresets.length > 0) {
-            chrome.contextMenus.create({
-                type: "separator",
-                parentId: ROOT_MENU,
-                contexts: ["link"]
-            });
-
-            for (const preset of enabledPresets) {
-                chrome.contextMenus.create({
-                    id: `${PRESET_PREFIX}${preset.id}`,
-                    parentId: ROOT_MENU,
-                    title: buildPresetTitle(preset),
-                    contexts: ["link"]
-                });
-            }
-        }
-
-        chrome.contextMenus.create({
-            type: "separator",
-            parentId: ROOT_MENU,
-            contexts: ["link"]
-        });
-
-        chrome.contextMenus.create({
-            id: SETTINGS,
-            parentId: ROOT_MENU,
-            title: "⚙ Settings",
-            contexts: ["link"]
-        });
-
-        console.log("Deluge Connect context menus created.");
-    } catch (error) {
-        console.error("Could not create context menus:", error);
-    }
-}
-
 chrome.contextMenus.onClicked.addListener(async info => {
-    if (info.menuItemId === SETTINGS) {
-        await chrome.runtime.openOptionsPage();
+    const menuItemId = String(info.menuItemId);
+
+    if (!menuItemId.startsWith(PRESET_MENU_PREFIX)) {
         return;
     }
 
@@ -86,23 +32,10 @@ chrome.contextMenus.onClicked.addListener(async info => {
     }
 
     try {
-        if (info.menuItemId === ADD_DEFAULT) {
-            await addTorrent(info.linkUrl);
+        const presetId = menuItemId.slice(
+            PRESET_MENU_PREFIX.length
+        );
 
-            console.log(
-                "Torrent added using Deluge's default settings."
-            );
-
-            return;
-        }
-
-        const menuItemId = String(info.menuItemId);
-
-        if (!menuItemId.startsWith(PRESET_PREFIX)) {
-            return;
-        }
-
-        const presetId = menuItemId.slice(PRESET_PREFIX.length);
         const presets = await Presets.getAll();
 
         const preset = presets.find(
@@ -118,16 +51,89 @@ chrome.contextMenus.onClicked.addListener(async info => {
         await addTorrent(info.linkUrl, preset);
 
         console.log(
-            `Torrent added using preset "${preset.name}".`
+            `Added to Deluge using preset "${preset.name}".`
         );
     } catch (error) {
-        console.error("Failed to add torrent:", error);
+        console.error(
+            "Failed to add torrent to Deluge:",
+            error
+        );
     }
 });
 
+async function createMenus() {
+    try {
+        await chrome.contextMenus.removeAll();
+
+        const presets = await Presets.getAll();
+
+        const enabledPresets = presets.filter(
+            preset => preset.enabled !== false
+        );
+
+        if (enabledPresets.length === 0) {
+            console.log(
+                "No Deluge Connect presets are enabled."
+            );
+
+            return;
+        }
+
+        if (enabledPresets.length === 1) {
+            createPresetMenuItem(enabledPresets[0]);
+
+            console.log(
+                "Created one-click Deluge Connect menu."
+            );
+
+            return;
+        }
+
+        chrome.contextMenus.create({
+            id: ROOT_MENU_ID,
+            title: "Add to Deluge",
+            contexts: ["link"]
+        });
+
+        for (const preset of enabledPresets) {
+            createPresetMenuItem(
+                preset,
+                ROOT_MENU_ID
+            );
+        }
+
+        console.log(
+            `Created Deluge Connect menu with ` +
+            `${enabledPresets.length} presets.`
+        );
+    } catch (error) {
+        console.error(
+            "Could not create Deluge Connect menus:",
+            error
+        );
+    }
+}
+
+function createPresetMenuItem(preset, parentId = null) {
+    const menuProperties = {
+        id: `${PRESET_MENU_PREFIX}${preset.id}`,
+        title: buildPresetTitle(preset),
+        contexts: ["link"]
+    };
+
+    if (parentId) {
+        menuProperties.parentId = parentId;
+    }
+
+    chrome.contextMenus.create(menuProperties);
+}
+
 function buildPresetTitle(preset) {
     const icon = String(preset.icon || "").trim();
-    const name = String(preset.name || "Unnamed preset").trim();
+
+    const name = String(
+        preset.name || "Unnamed preset"
+    ).trim();
 
     return icon
         ? `${icon} ${name}`
