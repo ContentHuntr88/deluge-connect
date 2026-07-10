@@ -1,34 +1,22 @@
 import { Settings } from "../storage/settings.js";
-import { callRpc } from "./rpc.js";
 import { login } from "./auth.js";
+import { callRpc } from "./rpc.js";
 
 /**
- * Tests the exact saved server URL and password.
+ * Tests the saved Deluge server connection.
+ *
+ * The supplied password is validated even when Deluge already has an
+ * authenticated browser session.
  *
  * @returns {Promise<{
- *   connected: boolean,
- *   apiVersion: string | null
+ *     connected: boolean,
+ *     apiVersion: string | null
  * }>}
  */
 export async function testConnection() {
-    const settings = await Settings.get();
+    const { serverUrl, password } = await getConnectionSettings();
 
-    const serverUrl = String(
-        settings.serverUrl || ""
-    ).trim();
-
-    const password = String(
-        settings.password || ""
-    );
-
-    /*
-     * Always validate the supplied password.
-     * Do not trust an existing Deluge session cookie.
-     */
-    await login(
-        serverUrl,
-        password
-    );
+    await login(serverUrl, password);
 
     const authenticated = await callRpc(
         serverUrl,
@@ -42,24 +30,7 @@ export async function testConnection() {
         );
     }
 
-    let apiVersion = null;
-
-    try {
-        const version = await callRpc(
-            serverUrl,
-            "web.get_webui_version",
-            []
-        );
-
-        apiVersion = version
-            ? String(version)
-            : null;
-    } catch {
-        /*
-         * Login succeeded. A missing version method should not
-         * cause the connection test to fail.
-         */
-    }
+    const apiVersion = await getWebUiVersion(serverUrl);
 
     return {
         connected: true,
@@ -68,37 +39,65 @@ export async function testConnection() {
 }
 
 /**
- * Calls a Deluge JSON-RPC method.
+ * Calls a Deluge JSON-RPC method using the saved connection settings.
  *
- * The saved password is validated before every operation so an old
- * authenticated browser session cannot bypass an incorrect password.
+ * The password is validated before every operation so an existing Deluge
+ * session cannot bypass an incorrect saved password.
  *
  * @param {string} method Deluge RPC method name.
- * @param {unknown[]} params RPC parameters.
- * @returns {Promise<unknown>}
+ * @param {unknown[]} params RPC method parameters.
+ * @returns {Promise<unknown>} Resolves with the RPC result.
  */
 export async function callDeluge(method, params = []) {
-    const settings = await Settings.get();
+    const { serverUrl, password } = await getConnectionSettings();
 
-    const serverUrl = String(
-        settings.serverUrl || ""
-    ).trim();
-
-    const password = String(
-        settings.password || ""
-    );
-
-    /*
-     * Force password validation before sending anything to Deluge.
-     */
-    await login(
-        serverUrl,
-        password
-    );
+    await login(serverUrl, password);
 
     return callRpc(
         serverUrl,
         method,
         params
     );
+}
+
+/**
+ * Loads and normalizes the saved Deluge connection settings.
+ *
+ * @returns {Promise<{
+ *     serverUrl: string,
+ *     password: string
+ * }>}
+ */
+async function getConnectionSettings() {
+    const settings = await Settings.get();
+
+    return {
+        serverUrl: String(settings.serverUrl || "").trim(),
+        password: String(settings.password || "")
+    };
+}
+
+/**
+ * Retrieves the Deluge WebUI version when supported.
+ *
+ * Authentication has already succeeded at this point, so failure to retrieve
+ * the optional version should not fail the connection test.
+ *
+ * @param {string} serverUrl Deluge WebUI base URL.
+ * @returns {Promise<string | null>}
+ */
+async function getWebUiVersion(serverUrl) {
+    try {
+        const version = await callRpc(
+            serverUrl,
+            "web.get_webui_version",
+            []
+        );
+
+        return version
+            ? String(version)
+            : null;
+    } catch {
+        return null;
+    }
 }
