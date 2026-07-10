@@ -4,20 +4,23 @@ export const DEFAULT_PRESETS = [
         name: "TV",
         icon: "📺",
         label: "tv-sonarr",
-        downloadLocation: ""
+        downloadLocation: "",
+        enabled: true
     },
     {
         id: "movies",
         name: "Movies",
         icon: "🎬",
         label: "radarr",
-        downloadLocation: ""
+        downloadLocation: "",
+        enabled: true
     },
     {
         id: "games",
         name: "Games",
         icon: "🎮",
         label: "games",
-        downloadLocation: ""
+        downloadLocation: "",
+        enabled: true
     }
 ];
