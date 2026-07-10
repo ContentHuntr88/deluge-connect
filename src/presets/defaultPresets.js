@@ -11,7 +11,7 @@ export const DEFAULT_PRESETS = [
         id: "tv",
         name: "TV",
         icon: "📺",
-        label: "tv-sonarr",
+        label: "sonarr",
         enabled: true,
         builtIn: true
     },

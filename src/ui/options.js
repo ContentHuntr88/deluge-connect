@@ -1,6 +1,7 @@
 import { Settings } from "../storage/settings.js";
 import { Presets } from "../storage/presets.js";
 import { testConnection } from "../api/deluge.js";
+import { requestServerAccess } from "../permissions/serverAccess.js";
 
 const settingsForm = document.getElementById("settingsForm");
 
@@ -55,8 +56,12 @@ async function saveSettings(event) {
     saveButton.disabled = true;
 
     try {
+        const serverUrl = serverUrlInput.value.trim();
+
+        await requestServerAccess(serverUrl);
+
         await Settings.save({
-            serverUrl: serverUrlInput.value.trim(),
+            serverUrl,
             password: passwordInput.value,
             rememberPassword: true
         });
@@ -80,8 +85,12 @@ async function runConnectionTest() {
     showStatus("Connecting...", false);
 
     try {
+        const serverUrl = serverUrlInput.value.trim();
+
+        await requestServerAccess(serverUrl);
+
         await Settings.save({
-            serverUrl: serverUrlInput.value.trim(),
+            serverUrl,
             password: passwordInput.value,
             rememberPassword: true
         });
