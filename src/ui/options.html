@@ -1,16 +1,47 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
-    <title>Deluge Connect</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deluge Connect Settings</title>
+
+    <link rel="stylesheet" href="options.css">
 </head>
 
 <body>
 
 <h1>Deluge Connect</h1>
 
-<p>Settings coming soon...</p>
+<div class="card">
+
+    <label>
+        Deluge URL
+    </label>
+
+    <input
+        id="serverUrl"
+        type="text"
+        placeholder="http://10.14.88.11:8112">
+
+    <label>
+        Password
+    </label>
+
+    <input
+        id="password"
+        type="password">
+
+    <br><br>
+
+    <button id="saveButton">
+        Save Settings
+    </button>
+
+    <p id="status"></p>
+
+</div>
+
+<script src="options.js"></script>
 
 </body>
-
 </html>
