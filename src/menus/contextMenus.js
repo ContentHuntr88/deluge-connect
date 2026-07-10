@@ -1,30 +1,54 @@
-chrome.runtime.onInstalled.addListener(() => {
+import { addTorrent } from "../services/delugeService.js";
 
-    chrome.contextMenus.create({
-        id: "addToDeluge",
-        title: "Add to Deluge",
-        contexts: ["link"],
-        targetUrlPatterns: [
-            "magnet:*",
-            "*.torrent"
-        ]
-    });
+const MENU_ID = "deluge-connect-add";
 
-});
+createContextMenu();
 
-chrome.contextMenus.onClicked.addListener((info) => {
+chrome.runtime.onInstalled.addListener(createContextMenu);
+chrome.runtime.onStartup.addListener(createContextMenu);
 
-    if (info.menuItemId === "addToDeluge") {
+async function createContextMenu() {
+    try {
+        await chrome.contextMenus.removeAll();
 
-        console.log(info.linkUrl);
+        chrome.contextMenus.create(
+            {
+                id: MENU_ID,
+                title: "Add to Deluge",
+                contexts: ["link"]
+            },
+            () => {
+                if (chrome.runtime.lastError) {
+                    console.error(
+                        "Context menu error:",
+                        chrome.runtime.lastError.message
+                    );
 
-        chrome.notifications.create({
-            type: "basic",
-            iconUrl: "icons/icon128.png",
-            title: "Deluge Connect",
-            message: "Torrent captured!"
-        });
+                    return;
+                }
 
+                console.log("Deluge Connect context menu created.");
+            }
+        );
+    } catch (error) {
+        console.error("Failed to create context menu:", error);
+    }
+}
+
+chrome.contextMenus.onClicked.addListener(async (info) => {
+    if (info.menuItemId !== MENU_ID) {
+        return;
     }
 
+    const linkUrl = String(info.linkUrl || "").trim();
+
+    console.log("Selected link:", linkUrl);
+
+    try {
+        await addTorrent(linkUrl);
+
+        console.log("Torrent added successfully.");
+    } catch (error) {
+        console.error("Failed to add torrent:", error);
+    }
 });
